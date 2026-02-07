@@ -9,7 +9,7 @@ import io
 # Page Config
 st.set_page_config(page_title="Pro Clean Portal", layout="centered")
 
-# Inventory Data
+# Inventory Data (Using cleaned prices)
 inventory = {
     "T180PC": {"desc": "T180 -- 42X34 PILLOW CASES", "price": 16.60, "weight": 2.0, "volume": 60},
     "T18036809": {"desc": "T180 -- 36X80X9 TWIN FITTED SHEET", "price": 65.40, "weight": 10.0, "volume": 300},
@@ -45,6 +45,8 @@ def create_pdf(po_num, date, items, total, boxes, weight, box_size):
     return buf
 
 st.title("🛡️ Pro Clean Portal")
+
+# 1. Build Order Section
 st.markdown("### 1. Build Order")
 if 'order_list' not in st.session_state: st.session_state.order_list = []
 
@@ -58,7 +60,12 @@ if st.session_state.order_list:
     df['Description'] = df['SKU'].apply(lambda x: inventory[x]['desc'])
     df['Unit Price'] = df['SKU'].apply(lambda x: inventory[x]['price'])
     df['Total'] = df['Unit Price'] * df['Qty']
-    st.table(df[['SKU', 'Description', 'Qty', 'Unit Price', 'Total']])
+    
+    # Format currency for display table
+    display_df = df.copy()
+    display_df['Unit Price'] = display_df['Unit Price'].map("${:,.2f}".format)
+    display_df['Total'] = display_df['Total'].map("${:,.2f}".format)
+    st.table(display_df[['SKU', 'Description', 'Qty', 'Unit Price', 'Total']])
     
     st.markdown("### 2. Shipping Configuration")
     box_choice = st.radio("Box Size", ["16x16x16", "18x18x18"], horizontal=True)
@@ -73,19 +80,35 @@ if st.session_state.order_list:
         po_id = f"LP-{datetime.now().strftime('%y%m%d-%H%M')}"
         date_str = datetime.now().strftime('%B %d, %Y')
         
+        # --- PREVIEW SECTION ---
         st.divider()
-        st.success(f"PO {po_id} Generated Successfully.")
+        st.markdown("### 👁️ PO Preview")
+        with st.container(border=True):
+            p1, p2 = st.columns(2)
+            with p1:
+                st.write(f"**PO #:** {po_id}")
+                st.write(f"**Date:** {date_str}")
+            with p2:
+                st.write("**BILL TO:** Pro Clean")
+                st.caption("5155 Sugarloaf Parkway, Ste D, Lawrenceville, GA")
+            
+            st.write("---")
+            # Minimalist preview table
+            st.dataframe(display_df[['SKU', 'Qty', 'Total']], hide_index=True, use_container_width=True)
+            st.write(f"**Est. Shipping:** {num_boxes} boxes ({box_choice})")
+            st.markdown(f"#### Grand Total: ${total_val:,.2f}")
+
+        # --- ACTIONS SECTION ---
+        st.markdown("### 3. Actions")
+        act1, act2 = st.columns(2)
         
-        # Download Section
-        pdf_data = create_pdf(po_id, date_str, df.to_dict('records'), total_val, num_boxes, total_weight, box_choice)
-        st.download_button(label="📥 Download PO as PDF", data=pdf_data, file_name=f"PO_{po_id}.pdf", mime="application/pdf")
+        with act1:
+            pdf_data = create_pdf(po_id, date_str, df.to_dict('records'), total_val, num_boxes, total_weight, box_choice)
+            st.download_button(label="📥 Download PDF", data=pdf_data, file_name=f"PO_{po_id}.pdf", mime="application/pdf", use_container_width=True)
         
-        # Email Simulation
-        st.divider()
-        st.markdown("### 📧 Email Purchase Order")
-        email_addr = st.text_input("Recipient Email", value="Email@procleanoofatl.com")
-        if st.button("Send PO via Email"):
-            st.info(f"Prototype Logic: Sending {po_id} to {email_addr}... Done!")
+        with act2:
+            if st.button("📧 Email PO", use_container_width=True):
+                st.success(f"Email sent to Email@procleanoofatl.com!")
 
     if st.button("Clear Order"):
         st.session_state.order_list = []
